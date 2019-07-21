@@ -1,0 +1,1 @@
+module Hedgehog.Golden where
