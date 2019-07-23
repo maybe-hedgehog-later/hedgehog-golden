@@ -51,3 +51,4 @@ library
     , extra ^>= 1.6.0
     , hedgehog ^>= 1.0
     , hedgehog-golden ^>= 0.0.0
+    , containers ^>=0.6.2.1
