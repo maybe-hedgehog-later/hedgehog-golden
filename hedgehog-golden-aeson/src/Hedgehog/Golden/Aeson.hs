@@ -44,7 +44,7 @@ goldenProperty gen =
   in
     withTests 1 . property $ ifM
       (fileExists fileName)
-      (compareExisting fileName gen >> compareSerialization fileName gen)
+      (compareDeserialized fileName gen >> compareSerialized fileName gen)
       (createNewFile fileName gen)
 
 createNewFile :: MonadTest m => MonadIO m => ToJSON a => FilePath -> Gen a -> m ()
@@ -81,8 +81,8 @@ encodePretty = encodePretty' defConfig
   , confCompare = compare
   }
 
-compareExisting :: MonadTest m => MonadIO m => Eq a => ToJSON a => FromJSON a => FilePath -> Gen a -> m ()
-compareExisting fileName gen =
+compareDeserialized :: MonadTest m => MonadIO m => Eq a => ToJSON a => FromJSON a => FilePath -> Gen a -> m ()
+compareDeserialized fileName gen =
   liftIO (Aeson.eitherDecodeFileStrict fileName) >>=
   getSeedAndElements >>=
   uncurry (compareWith gen)
@@ -124,5 +124,5 @@ renderDiff diffs =
     First x  -> "\ESC[31;1m  - " <> Text.unpack x <> " \ESC[0m"
     Second x -> "\ESC[32;1m  - " <> Text.unpack x <> " \ESC[0m"
 
-compareSerialization :: MonadTest m => FilePath -> Gen a -> m ()
-compareSerialization _ _ = Property.failure
+compareSerialized :: MonadTest m => FilePath -> Gen a -> m ()
+compareSerialized _ _ = Property.failWith Nothing "Implement serialization check!"
