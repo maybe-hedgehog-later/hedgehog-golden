@@ -47,8 +47,10 @@ library
     , aeson-pretty ^>= 0.8.7
     , base ^>=4.12.0.0
     , bytestring ^>=0.10.10.0
+    , containers ^>=0.6.2.1
+    , Diff ^>=0.3.4
     , directory ^>=1.3.4.0
     , extra ^>= 1.6.0
     , hedgehog ^>= 1.0
     , hedgehog-golden ^>= 0.0.0
-    , containers ^>=0.6.2.1
+    , text ^>=1.2.3.1

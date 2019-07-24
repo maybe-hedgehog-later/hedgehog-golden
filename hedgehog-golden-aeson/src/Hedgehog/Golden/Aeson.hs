@@ -10,16 +10,22 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
 import           Data.Aeson.Encode.Pretty (Config(..), Indent(..), encodePretty', defConfig)
-import           Data.ByteString.Lazy (ByteString, writeFile)
+import           Data.Algorithm.Diff (Diff(..), getDiff)
+import           Data.ByteString.Lazy (ByteString, toStrict, writeFile)
+import           Data.Functor ((<&>))
 import           Data.Proxy (Proxy(..))
 import           Data.Sequence (Seq)
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import           Data.Typeable (Typeable, typeRep)
-import           GHC.Stack (HasCallStack, withFrozenCallStack)
+import           GHC.Stack (HasCallStack)
 import           Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Internal.Gen as Gen
 import qualified Hedgehog.Internal.Seed as Seed
 import qualified Hedgehog.Internal.Tree as Tree
+import qualified Hedgehog.Internal.Property as Property
 import qualified Hedgehog.Range as Range
 import           System.Directory (doesFileExist, createDirectoryIfMissing)
 
@@ -29,7 +35,6 @@ goldenProperty :: forall a
   => FromJSON a
   => ToJSON a
   => Eq a
-  => Show a
   => Gen a -> Property
 goldenProperty gen =
   let
@@ -37,7 +42,7 @@ goldenProperty gen =
     fileName = "./golden/" <> typeName <> ".json"
     fileExists = liftIO . doesFileExist
   in
-    withFrozenCallStack . property $ ifM
+    withTests 1 . property $ ifM
       (fileExists fileName)
       (compareExisting fileName gen)
       (createNewFile fileName gen)
@@ -76,7 +81,7 @@ encodePretty = encodePretty' defConfig
   , confCompare = compare
   }
 
-compareExisting :: MonadTest m => MonadIO m => Show a => Eq a => FromJSON a => FilePath -> Gen a -> m ()
+compareExisting :: MonadTest m => MonadIO m => Eq a => ToJSON a => FromJSON a => FilePath -> Gen a -> m ()
 compareExisting fileName gen =
   liftIO (Aeson.eitherDecodeFileStrict fileName) >>=
   getSeedAndElements >>=
@@ -92,9 +97,29 @@ decodeGoldenJson = Aeson.parseEither $ \obj -> do
   samples <- obj .: "samples"
   pure (Seed value gamma, samples)
 
-compareWith :: MonadTest m => Show a => Eq a => Gen a -> Seed -> Seq a -> m ()
+compareWith :: MonadTest m => ToJSON a => Eq a => Gen a -> Seed -> Seq a -> m ()
 compareWith gen seed samplesFromFile =
   let
     newSamples = genSamples seed gen
+    jsonDiff = diffMessage samplesFromFile newSamples
   in
-    newSamples === samplesFromFile
+    if newSamples == samplesFromFile then
+      pure ()
+    else
+      Property.failWith Nothing jsonDiff
+
+
+diffMessage :: ToJSON a => a -> a -> String
+diffMessage expected actual =
+  let
+    toLines = Text.lines . Text.decodeUtf8 . toStrict . encodePretty
+    diffLines = getDiff (toLines expected) (toLines actual)
+  in
+    unlines $ "\ESC[31;1mFile contains diff:\ESC[0m\n" : renderDiff diffLines
+
+renderDiff :: [Diff Text] -> [String]
+renderDiff diffs =
+  diffs <&> \case
+    Both x _ -> "    " <> Text.unpack x
+    First x  -> "\ESC[31;1m  - " <> Text.unpack x <> " \ESC[0m"
+    Second x -> "\ESC[32;1m  - " <> Text.unpack x <> " \ESC[0m"
