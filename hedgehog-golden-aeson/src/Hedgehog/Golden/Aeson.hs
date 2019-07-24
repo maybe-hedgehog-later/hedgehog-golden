@@ -44,7 +44,7 @@ goldenProperty gen =
   in
     withTests 1 . property $ ifM
       (fileExists fileName)
-      (compareExisting fileName gen)
+      (compareExisting fileName gen >> compareSerialization fileName gen)
       (createNewFile fileName gen)
 
 createNewFile :: MonadTest m => MonadIO m => ToJSON a => FilePath -> Gen a -> m ()
@@ -123,3 +123,6 @@ renderDiff diffs =
     Both x _ -> "    " <> Text.unpack x
     First x  -> "\ESC[31;1m  - " <> Text.unpack x <> " \ESC[0m"
     Second x -> "\ESC[32;1m  - " <> Text.unpack x <> " \ESC[0m"
+
+compareSerialization :: MonadTest m => FilePath -> Gen a -> m ()
+compareSerialization _ _ = Property.failure
