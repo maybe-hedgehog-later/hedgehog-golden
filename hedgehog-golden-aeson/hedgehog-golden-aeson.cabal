@@ -25,9 +25,7 @@ category:
 extra-source-files:
   CHANGELOG.md
 
-library
-  hs-source-dirs:
-    src
+common options
   default-language:
     Haskell2010
   ghc-options:
@@ -37,11 +35,22 @@ library
     NoImplicitPrelude
     OverloadedStrings
     RankNTypes
+    RecordWildCards
     ScopedTypeVariables
+    TupleSections
     TypeApplications
     ViewPatterns
+
+library
+  import:
+    options
+  hs-source-dirs:
+    src
   exposed-modules:
+    Hedgehog.Golden
     Hedgehog.Golden.Aeson
+    Hedgehog.Golden.Sample
+    Hedgehog.Golden.Internal.Source
   build-depends:
     , aeson ^>= 1.4.4.0
     , aeson-pretty ^>= 0.8.7
@@ -54,3 +63,18 @@ library
     , hedgehog ^>= 1.0
     , hedgehog-golden ^>= 0.0.0
     , text ^>=1.2.3.1
+
+test-suite test
+  import:
+    options
+  type:
+    exitcode-stdio-1.0
+  hs-source-dirs:
+    test
+  main-is:
+    Main.hs
+  other-modules:
+  build-depends:
+    , base ^>=4.12.0.0
+    , hedgehog ^>= 1.0
+    , hedgehog-golden-aeson
