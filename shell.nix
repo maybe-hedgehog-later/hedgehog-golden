@@ -8,6 +8,10 @@ with import (builtins.fetchGit {
 stdenv.mkDerivation {
   name = "hedgehog-golden";
 
+  shellHook = ''
+    export LOCALE_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive";
+  '';
+
   buildInputs = with haskell.packages.ghc864; [
     cabal-install
     hdevtools
