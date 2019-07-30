@@ -49,6 +49,7 @@ library
   exposed-modules:
     Hedgehog.Golden
     Hedgehog.Golden.Aeson
+    Hedgehog.Golden.Types
     Hedgehog.Golden.Sample
     Hedgehog.Golden.Internal.Source
   build-depends:

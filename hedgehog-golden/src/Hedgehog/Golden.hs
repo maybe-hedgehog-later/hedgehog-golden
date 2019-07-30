@@ -1,29 +1,20 @@
-module Hedgehog.Golden where
+module Hedgehog.Golden
+  ( goldenTests
+  , GoldenTest
+  ) where
 
 import Prelude
 
 import           Control.Monad (when)
-import           Data.Aeson (ToJSON)
 import           Data.Traversable (traverse)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import           Data.Proxy (Proxy(..))
-import           Data.Typeable (Typeable, typeRep)
-import           GHC.Stack (HasCallStack, CallStack, callStack, getCallStack, withFrozenCallStack)
-import           Hedgehog (Gen, Seed)
-import           Hedgehog.Golden.Sample (genSamples)
-import           Hedgehog.Golden.Aeson (encodeGolden)
+import           GHC.Stack (CallStack, getCallStack)
 import qualified Hedgehog.Internal.Seed as Seed
 import           Hedgehog.Golden.Internal.Source as Source
-import           System.Directory (doesFileExist)
 import           System.Exit (exitFailure)
-
-type ValueGenerator = Seed -> [Text]
-
-data GoldenTest
-  = NewFile CallStack FilePath ValueGenerator
-  | ExistingFile CallStack FilePath ValueGenerator
+import           Hedgehog.Golden.Types (GoldenTest(..), ValueGenerator)
 
 data TestResult
   = NewFileFailure
@@ -87,22 +78,3 @@ renderAcceptNew filePath =
 
 existingGoldenFile :: FilePath -> ValueGenerator -> IO TestResult
 existingGoldenFile _ _ = undefined
-
-aesonDiff :: forall a. HasCallStack => Typeable a => ToJSON a => Gen a -> IO GoldenTest
-aesonDiff gen = withFrozenCallStack $ do
-  fileExists <- doesFileExist fileName
-  pure $ if fileExists then
-    ExistingFile callStack fileName (aesonValueGenerator gen)
-  else
-    NewFile callStack fileName (aesonValueGenerator gen)
-  where
-    typeName = show . typeRep $ Proxy @a
-    fileName :: FilePath
-    fileName = "golden/" <> typeName <> ".json"
-
-aesonValueGenerator :: ToJSON a => Gen a -> ValueGenerator
-aesonValueGenerator gen seed =
-  let
-    samples = genSamples seed gen
-  in
-    Text.lines $ encodeGolden seed samples
