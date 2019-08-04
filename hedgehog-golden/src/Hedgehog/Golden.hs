@@ -16,11 +16,13 @@ import qualified Hedgehog.Internal.Seed as Seed
 import           Hedgehog.Golden.Internal.Source as Source
 import           System.Exit (exitFailure)
 import           System.Directory (createDirectoryIfMissing)
-import           Hedgehog.Golden.Types (GoldenTest(..), GroupName(..), TestName(..), ValueGenerator)
+import           Hedgehog.Golden.Types (GoldenTest(..), GroupName(..))
+import           Hedgehog.Golden.Types (TestName(..), ValueGenerator, ValueReader)
 import           Hedgehog.Golden.Aeson (decodeSeed)
 
 data TestResult
   = NewFileFailure
+  | ValueReadError Text
   | FileError Text
   | ComparisonFailure FilePath [Diff Text]
   | Success
@@ -38,7 +40,7 @@ checkErrors results =
 applyTest :: GoldenTest -> IO TestResult
 applyTest = \case
   NewFile name cs fp gen -> printName name >> newGoldenFile cs fp gen
-  ExistingFile name _ fp gen -> printName name >> existingGoldenFile fp gen
+  ExistingFile name _ fp gen reader -> printName name >> existingGoldenFile fp gen reader
 
 newGoldenFile :: CallStack -> FilePath -> ValueGenerator -> IO TestResult
 newGoldenFile cs fp gen =
@@ -103,8 +105,8 @@ renderAcceptNew =
   , ""
   ]
 
-existingGoldenFile :: FilePath -> ValueGenerator -> IO TestResult
-existingGoldenFile fp gen = getSeedAndLines >>= \case
+existingGoldenFile :: FilePath -> ValueGenerator -> Maybe ValueReader -> IO TestResult
+existingGoldenFile fp gen reader = getSeedAndLines >>= \case
   Right (seed, existingLines) ->
     let
       newLines = gen seed
@@ -113,11 +115,17 @@ existingGoldenFile fp gen = getSeedAndLines >>= \case
         Both _ _ -> False
         First _  -> True
         Second _ -> True
+      runDecodeTest = case reader of
+        Just r ->
+          either (pure . ValueReadError) (const $ printSuccess "Passed read test" >> pure Success) $
+            r . Text.intercalate "\n" $ existingLines
+        Nothing -> pure Success
     in
       if hasDifference comparison then
         pure (ComparisonFailure fp comparison)
-      else
-        printSuccess "Passed encoding test" >> pure Success
+      else do
+        printSuccess "Passed write test"
+        runDecodeTest
   Left (Text.pack -> err) ->
     pure (FileError err)
   where

@@ -9,6 +9,8 @@ import           Hedgehog (Seed)
 
 type ValueGenerator = Seed -> [Text]
 
+type ValueReader = Text -> Either Text ()
+
 newtype GroupName = GroupName { unGroupName :: Text }
   deriving (Eq, IsString)
 
@@ -17,4 +19,4 @@ newtype TestName = TestName { unTestName :: Text }
 
 data GoldenTest
   = NewFile TestName CallStack FilePath ValueGenerator
-  | ExistingFile TestName CallStack FilePath ValueGenerator
+  | ExistingFile TestName CallStack FilePath ValueGenerator (Maybe ValueReader)

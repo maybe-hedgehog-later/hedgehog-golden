@@ -58,16 +58,19 @@ decodeGolden = Aeson.parseEither $ \obj -> do
   samples <- obj .: "samples"
   pure (Seed value gamma, samples)
 
-goldenTest :: forall a. HasCallStack => Typeable a => ToJSON a => Gen a -> IO GoldenTest
+goldenTest :: forall a. HasCallStack => Typeable a => FromJSON a => ToJSON a => Gen a -> IO GoldenTest
 goldenTest gen = withFrozenCallStack $
   let
     typeName = show . typeRep $ Proxy @a
     testName = TestName $ Text.pack typeName
     fileName = "golden/" <> typeName <> ".json"
     aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
+    aesonValueReader t =
+      either (Left . Text.pack) (const $ Right ()) $
+        Aeson.eitherDecodeStrict (Text.encodeUtf8 t) >>= decodeGolden @a
   in do
     fileExists <- doesFileExist fileName
     pure $ if fileExists then
-      ExistingFile testName callStack fileName aesonValueGenerator
+      ExistingFile testName callStack fileName aesonValueGenerator (Just aesonValueReader)
     else
       NewFile testName callStack fileName aesonValueGenerator
