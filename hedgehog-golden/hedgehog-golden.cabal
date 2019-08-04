@@ -31,6 +31,7 @@ common options
   ghc-options:
     -Wall -Werror -Wredundant-constraints -fhide-source-paths
   default-extensions:
+    GeneralizedNewtypeDeriving
     LambdaCase
     NoImplicitPrelude
     OverloadedStrings

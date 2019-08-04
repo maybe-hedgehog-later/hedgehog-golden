@@ -7,6 +7,7 @@ import qualified Hedgehog.Golden.Aeson as Aeson
 import qualified Hedgehog.Gen as Gen
 
 main :: IO ()
-main = goldenTests
+main = goldenTests "Simple Tests"
   [ Aeson.goldenTest Gen.hexit
+  , Aeson.goldenTest Gen.bool
   ]

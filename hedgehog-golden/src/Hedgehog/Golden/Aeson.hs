@@ -1,6 +1,7 @@
 module Hedgehog.Golden.Aeson
   ( encodeGolden
   , decodeGolden
+  , decodeSeed
   , goldenTest
   ) where
 
@@ -19,7 +20,7 @@ import qualified Data.Text.Encoding as Text
 import           Data.Typeable (Typeable, typeRep)
 import           Hedgehog (Gen, Seed(..))
 import           Hedgehog.Golden.Sample (genSamples)
-import           Hedgehog.Golden.Types (GoldenTest(..))
+import           Hedgehog.Golden.Types (GoldenTest(..), TestName(..))
 import           GHC.Stack (HasCallStack, callStack, withFrozenCallStack)
 import           System.Directory (doesFileExist)
 
@@ -38,6 +39,18 @@ encodeGolden seed samples =
     encodePretty $
       Aeson.object [ "seed" .= aesonSeed seed, "samples" .= Aeson.toJSON samples ]
 
+decodeSeed :: Text -> Either String Seed
+decodeSeed text =
+  let
+    getSeed :: Aeson.Object -> Either String Seed
+    getSeed =
+      Aeson.parseEither $ \obj -> do
+        value <- obj .: "seed" >>= (.: "value")
+        gamma <- obj .: "seed" >>= (.: "gamma")
+        pure $ Seed value gamma
+  in
+    Aeson.eitherDecodeStrict (Text.encodeUtf8 text) >>= getSeed
+
 decodeGolden :: FromJSON a => Aeson.Object -> Either String (Seed, Seq a)
 decodeGolden = Aeson.parseEither $ \obj -> do
   value <- obj .: "seed" >>= (.: "value")
@@ -49,11 +62,12 @@ goldenTest :: forall a. HasCallStack => Typeable a => ToJSON a => Gen a -> IO Go
 goldenTest gen = withFrozenCallStack $
   let
     typeName = show . typeRep $ Proxy @a
+    testName = TestName $ Text.pack typeName
     fileName = "golden/" <> typeName <> ".json"
     aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
   in do
     fileExists <- doesFileExist fileName
     pure $ if fileExists then
-      ExistingFile callStack fileName aesonValueGenerator
+      ExistingFile testName callStack fileName aesonValueGenerator
     else
-      NewFile callStack fileName aesonValueGenerator
+      NewFile testName callStack fileName aesonValueGenerator
