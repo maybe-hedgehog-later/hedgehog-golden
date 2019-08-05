@@ -1,11 +1,12 @@
 module Hedgehog.Golden
   ( goldenTests
+  , goldenTests_
   , GoldenTest
   ) where
 
 import Prelude
 
-import           Control.Monad (when)
+import           Control.Monad (unless)
 import           Data.Algorithm.Diff (Diff(..), getDiff)
 import           Data.Traversable (traverse)
 import           Data.Text (Text)
@@ -27,14 +28,18 @@ data TestResult
   | Success
   deriving Eq
 
-goldenTests :: GroupName -> [IO GoldenTest] -> IO ()
+goldenTests_ :: GroupName -> [IO GoldenTest] -> IO ()
+goldenTests_ groupName tests = do
+  res <- and <$> goldenTests groupName tests
+  unless res exitFailure
+
+goldenTests :: GroupName -> [IO GoldenTest] -> IO [Bool]
 goldenTests groupName tests = do
   printGroupName groupName
   sequence tests >>= traverse applyTest >>= checkErrors
 
-checkErrors :: [TestResult] -> IO ()
-checkErrors results =
-  when (any (/= Success) results) exitFailure
+checkErrors :: [TestResult] -> IO [Bool]
+checkErrors = pure . fmap (== Success)
 
 applyTest :: GoldenTest -> IO TestResult
 applyTest = \case
