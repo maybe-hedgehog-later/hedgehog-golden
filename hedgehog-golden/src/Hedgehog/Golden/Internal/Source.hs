@@ -1,11 +1,13 @@
 module Hedgehog.Golden.Internal.Source
-  ( addLineNumbers
+  ( addLineNumber
+  , addLineNumbers
   , added
   , boxBottom
   , boxTop
   , isInteractive
   , removed
   , renderCallsite
+  , wrap
   -- * Colors
   , green
   , red
@@ -24,13 +26,13 @@ isInteractive :: SrcLoc -> Bool
 isInteractive SrcLoc{..} =
   srcLocFile == "<interactive>"
 
-renderCallsite :: SrcLoc -> IO [Text]
-renderCallsite s@SrcLoc{..} =
+renderCallsite :: Text -> SrcLoc -> IO [Text]
+renderCallsite msg s@SrcLoc{..} =
   if isInteractive s then pure []
   else do
     srcLines <- Text.lines <$> Text.readFile srcLocFile
     pure
-      . addSourceLoc srcLocFile srcLocStartLine
+      . addSourceLoc srcLocFile srcLocStartLine msg
       . wrap boxTop boxBottom
       . take (4 + srcLocEndLine - srcLocStartLine)
       . drop (srcLocStartLine - 2)
@@ -38,9 +40,9 @@ renderCallsite s@SrcLoc{..} =
       . addLineNumbers
       $ srcLines
 
-addSourceLoc :: FilePath -> Int -> [Text] -> [Text]
-addSourceLoc (Text.pack -> fp) (Text.pack . show -> lineNumber) txt =
-  ["", yellow "New golden file generated from: " <> fp <> ":" <> lineNumber ] ++ txt
+addSourceLoc :: FilePath -> Int -> Text -> [Text] -> [Text]
+addSourceLoc (Text.pack -> fp) (Text.pack . show -> lineNumber) msg txt =
+  ["", yellow (msg <> ": ") <> fp <> ":" <> lineNumber ] ++ txt
 
 addUnderline :: Int -> Int -> Int -> [Text] -> [Text]
 addUnderline line startCol endCol txt =
