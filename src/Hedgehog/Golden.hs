@@ -24,7 +24,6 @@ data TestResult
   = NewFileFailure
   | ValueReadError Text
   | FileError Text
-  | ComparisonFailure FilePath [Diff Text]
   | Success
   deriving Eq
 
@@ -98,10 +97,10 @@ newFileError =
 renderAcceptNew :: [Text]
 renderAcceptNew =
   [ ""
-  , "  Accept new golden file?"
+  , "Accept new golden file?"
   , ""
-  , Source.green  "    A" <> Source.white ")ccept" <> "     save new file"
-  , Source.red    "    r" <> Source.white ")eject" <> "     keep old golden file"
+  , Source.green  "  A" <> Source.white ")ccept" <> "     save new file"
+  , Source.red    "  r" <> Source.white ")eject" <> "     keep old golden file"
   , ""
   ]
 
@@ -129,7 +128,11 @@ existingGoldenFile cs fp gen reader = do
             Text.putStrLn . Text.intercalate "\n    " $ callsite
             Text.putStrLn $ Source.yellow "    Difference in: " <> Text.pack fp
             printDifference comparison
-            pure (ComparisonFailure fp comparison)
+            if Source.isInteractive srcLoc then do
+              Text.putStrLn . Text.intercalate "\n    " $ renderAcceptNew
+              handleInputChoice fp newLines
+            else
+              pure NewFileFailure
           else do
             printSuccess "Passed write test"
             runDecodeTest
