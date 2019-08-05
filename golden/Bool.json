@@ -1,15 +1,15 @@
 {
   "samples": [
     true,
+    false,
+    false,
     true,
-    true,
-    true,
+    false,
     true,
     false,
     true,
     true,
-    true,
-    false
+    true
   ],
   "seed": {
     "gamma": 1.1095414037045876439e19,
