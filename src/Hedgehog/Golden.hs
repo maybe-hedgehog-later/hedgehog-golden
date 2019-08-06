@@ -26,7 +26,7 @@ import           Hedgehog.Golden.Aeson (decodeSeed)
 data TestResult
   = NewFileFailure FilePath
   | ValueReadError Text
-  | FileError Text
+  | FileError FilePath Text
   | Success
   deriving Eq
 
@@ -57,8 +57,8 @@ getErrorSummary = \case
     Nothing
   NewFileFailure fp ->
     Just $ "Golden file did not exist: " <> Text.pack fp
-  FileError msg ->
-    Just $ "Encountered file error: " <> msg
+  FileError fp msg ->
+    Just $ "Encountered file error in " <> Source.yellow (Text.pack fp) <> ":\n    " <> msg
   ValueReadError msg ->
     Just $ "Encountered value read error: " <> msg
 
@@ -163,7 +163,7 @@ existingGoldenFile cs fp gen reader = do
             printSuccess "Passed write test"
             runDecodeTest
       Left (Text.pack -> err) ->
-        pure (FileError err)
+        pure (FileError fp err)
     where
       getSeedAndLines = do
         fileContents <- Text.readFile fp
