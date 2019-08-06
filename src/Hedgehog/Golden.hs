@@ -9,7 +9,9 @@ import Prelude
 import           Control.Monad (unless)
 import           Data.Algorithm.Diff (Diff(..), getDiff)
 import           Data.Traversable (traverse)
+import           Data.Foldable (traverse_)
 import           Data.Text (Text)
+import           Data.Maybe (catMaybes)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           GHC.Stack (CallStack, getCallStack)
@@ -22,7 +24,7 @@ import           Hedgehog.Golden.Types (TestName(..), ValueGenerator, ValueReade
 import           Hedgehog.Golden.Aeson (decodeSeed)
 
 data TestResult
-  = NewFileFailure
+  = NewFileFailure FilePath
   | ValueReadError Text
   | FileError Text
   | Success
@@ -36,10 +38,29 @@ goldenTests_ groupName tests = do
 goldenTests :: GroupName -> [IO GoldenTest] -> IO [Bool]
 goldenTests groupName tests = do
   printGroupName groupName
-  sequence tests >>= traverse applyTest >>= checkErrors
+  testResults <- sequence tests >>= traverse applyTest
 
-checkErrors :: [TestResult] -> IO [Bool]
-checkErrors = pure . fmap (== Success)
+  let
+    errorMessages =
+      catMaybes $ getErrorSummary <$> testResults
+
+    printOutput errors =
+      if null errors then pure ()
+      else Text.putStrLn (Source.white "▸ Summary") >> traverse_ printErrorRoot errors
+
+  printOutput errorMessages
+  pure $ fmap (== Success) testResults
+
+getErrorSummary :: TestResult -> Maybe Text
+getErrorSummary = \case
+  Success ->
+    Nothing
+  NewFileFailure fp ->
+    Just $ "Golden file did not exist: " <> Text.pack fp
+  FileError msg ->
+    Just $ "Encountered file error: " <> msg
+  ValueReadError msg ->
+    Just $ "Encountered value read error: " <> msg
 
 applyTest :: GoldenTest -> IO TestResult
 applyTest = \case
@@ -71,15 +92,15 @@ newGoldenFile cs fp gen =
     else do
       outputLines newFileError
       outputLines $ callsite ++ renderAddedFile newLines
-      pure NewFileFailure
+      pure $ NewFileFailure fp
 
 handleInputChoice :: FilePath -> [Text] -> IO TestResult
 handleInputChoice fp fileLines = getChoice >>= \case
   'a' -> saveNew
   'A' -> saveNew
 
-  'r' -> pure NewFileFailure
-  'R' -> pure NewFileFailure
+  'r' -> pure $ NewFileFailure fp
+  'R' -> pure $ NewFileFailure fp
 
   _   -> handleInputChoice fp fileLines
   where
@@ -137,7 +158,7 @@ existingGoldenFile cs fp gen reader = do
               Text.putStrLn . Text.intercalate "\n    " $ renderAcceptNew
               handleInputChoice fp newLines
             else
-              pure NewFileFailure
+              pure $ NewFileFailure fp
           else do
             printSuccess "Passed write test"
             runDecodeTest
@@ -161,6 +182,9 @@ printSuccess msg = Text.putStrLn $ Source.green "    ✓ " <> msg
 
 printError :: Text -> IO ()
 printError msg = Text.putStrLn $ Source.red "    ✗ " <> msg
+
+printErrorRoot :: Text -> IO ()
+printErrorRoot msg = Text.putStrLn $ Source.red "  ✗ " <> msg
 
 printDifference :: [Diff Text] -> IO ()
 printDifference =
