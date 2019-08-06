@@ -25,6 +25,7 @@ import           Hedgehog.Golden.Aeson (decodeSeed)
 
 data TestResult
   = NewFileFailure FilePath
+  | ComparisonFailure FilePath
   | ValueReadError Text
   | FileError FilePath Text
   | Success
@@ -56,9 +57,11 @@ getErrorSummary = \case
   Success ->
     Nothing
   NewFileFailure fp ->
-    Just $ "Golden file did not exist: " <> Text.pack fp
+    Just $ "Golden file did not exist " <> Source.yellow (Text.pack fp)
   FileError fp msg ->
     Just $ "Encountered file error in " <> Source.yellow (Text.pack fp) <> ":\n    " <> msg
+  ComparisonFailure fp ->
+    Just $ "Diff encountered in " <> Source.yellow (Text.pack fp)
   ValueReadError msg ->
     Just $ "Encountered value read error: " <> msg
 
@@ -88,21 +91,21 @@ newGoldenFile cs fp gen =
     if Source.isInteractive srcLoc then do
       outputLines $ callsite ++ renderAddedFile newLines
       outputLines renderAcceptNew
-      handleInputChoice fp newLines
+      handleInputChoice (NewFileFailure fp) fp newLines
     else do
       outputLines newFileError
       outputLines $ callsite ++ renderAddedFile newLines
       pure $ NewFileFailure fp
 
-handleInputChoice :: FilePath -> [Text] -> IO TestResult
-handleInputChoice fp fileLines = getChoice >>= \case
+handleInputChoice :: TestResult -> FilePath -> [Text] -> IO TestResult
+handleInputChoice failResult fp fileLines = getChoice >>= \case
   'a' -> saveNew
   'A' -> saveNew
 
-  'r' -> pure $ NewFileFailure fp
-  'R' -> pure $ NewFileFailure fp
+  'r' -> pure failResult
+  'R' -> pure failResult
 
-  _   -> handleInputChoice fp fileLines
+  _   -> handleInputChoice failResult fp fileLines
   where
     getChoice = getChar <* clearLine
     clearLine = putChar '\r' >> putChar ' ' >> putChar '\r'
@@ -156,9 +159,9 @@ existingGoldenFile cs fp gen reader = do
             printDifference comparison
             if Source.isInteractive srcLoc then do
               Text.putStrLn . Text.intercalate "\n    " $ renderAcceptNew
-              handleInputChoice fp newLines
+              handleInputChoice (ComparisonFailure fp) fp newLines
             else
-              pure $ NewFileFailure fp
+              pure (ComparisonFailure fp)
           else do
             printSuccess "Passed write test"
             runDecodeTest
