@@ -46,7 +46,7 @@ goldenTests groupName tests = do
 
     printOutput errors =
       if null errors then pure ()
-      else Text.putStrLn (Source.white "▸ Summary") >> traverse_ printErrorRoot errors
+      else Text.putStrLn (Source.white "\n▸ Summary") >> traverse_ printErrorRoot errors
 
   printOutput errorMessages
   pure $ fmap (== Success) testResults
