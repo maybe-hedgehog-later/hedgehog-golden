@@ -1,12 +1,11 @@
 module Hedgehog.Golden.Internal.Source
-  ( addLineNumber
+  ( -- * Functions for producing diff
+    addLineNumber
   , addLineNumbers
   , added
   , boxBottom
   , boxTop
-  , isInteractive
   , removed
-  , renderCallsite
   , wrap
   -- * Colors
   , green
@@ -19,38 +18,6 @@ import           Prelude
 
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import           GHC.Stack (SrcLoc(..))
-
-isInteractive :: SrcLoc -> Bool
-isInteractive SrcLoc{..} =
-  srcLocFile == "<interactive>"
-
-renderCallsite :: Text -> SrcLoc -> IO [Text]
-renderCallsite msg s@SrcLoc{..} =
-  if isInteractive s then pure []
-  else do
-    srcLines <- Text.lines <$> Text.readFile srcLocFile
-    pure
-      . addSourceLoc srcLocFile srcLocStartLine msg
-      . wrap boxTop boxBottom
-      . take (4 + srcLocEndLine - srcLocStartLine)
-      . drop (srcLocStartLine - 2)
-      . addUnderline srcLocStartLine srcLocStartCol srcLocEndCol
-      . addLineNumbers
-      $ srcLines
-
-addSourceLoc :: FilePath -> Int -> Text -> [Text] -> [Text]
-addSourceLoc (Text.pack -> fp) (Text.pack . show -> lineNumber) msg txt =
-  ["", yellow (msg <> ": ") <> fp <> ":" <> lineNumber ] ++ txt
-
-addUnderline :: Int -> Int -> Int -> [Text] -> [Text]
-addUnderline line startCol endCol txt =
-  take (line) txt ++ underline startCol endCol ++ drop line txt
-
-underline :: Int -> Int -> [Text]
-underline start end =
-  ["     │" <> red (Text.replicate (start - 1) " " <> Text.replicate (end - start) "^")]
 
 addLineNumbers :: [Text] -> [Text]
 addLineNumbers =
@@ -66,10 +33,10 @@ wrap :: Text -> Text -> [Text] -> [Text]
 wrap start end mid = [start] ++ mid ++ [end]
 
 boxTop :: Text
-boxTop = Text.replicate 5 "─" <> "┬" <> Text.replicate 115 "─"
+boxTop = Text.replicate 5 "─" <> "┬" <> Text.replicate 55 "─"
 
 boxBottom :: Text
-boxBottom = Text.replicate 5 "─" <> "┴" <> Text.replicate 115 "─"
+boxBottom = Text.replicate 5 "─" <> "┴" <> Text.replicate 55 "─"
 
 red :: Text -> Text
 red t = "\ESC[31;1m" <> t <> "\ESC[0m"

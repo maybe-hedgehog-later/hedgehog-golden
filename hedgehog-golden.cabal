@@ -48,7 +48,6 @@ library
   hs-source-dirs:
     src
   exposed-modules:
-    Hedgehog.Golden
     Hedgehog.Golden.Aeson
     Hedgehog.Golden.Types
     Hedgehog.Golden.Sample

@@ -1,28 +1,157 @@
 module Hedgehog.Golden.Aeson
-  ( encodeGolden
-  , decodeGolden
-  , decodeSeed
-  , goldenTest
+  ( goldenProperty
+  , goldenProperty'
   ) where
 
 import           Prelude
 
+import           Control.Monad (forM_)
+import           Control.Monad.IO.Class (MonadIO(..))
+import           Data.Algorithm.Diff (Diff(..), getDiff)
 import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
-import qualified Data.Aeson as Aeson
+import qualified Data.Aeson as Aeson (eitherDecodeStrict)
 import qualified Data.Aeson.Types as Aeson
 import           Data.Aeson.Encode.Pretty (Config(..), Indent(..), encodePretty', defConfig)
 import qualified Data.ByteString.Lazy as ByteString (toStrict)
 import           Data.Proxy (Proxy(..))
 import           Data.Sequence (Seq)
 import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text (intercalate, lines, pack, unpack)
+import qualified Data.Text.Encoding as Text (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as Text (readFile, writeFile)
 import           Data.Typeable (Typeable, typeRep)
-import           Hedgehog (Gen, Seed(..))
+import           Hedgehog (Gen, Property, PropertyT, Seed(..))
+import           Hedgehog (success)
+import qualified Hedgehog.Internal.Seed as Seed
+import           Hedgehog.Internal.Source
+import           Hedgehog.Internal.Property (Log(..), Property(..), PropertyConfig(..))
+import           Hedgehog.Internal.Property (defaultConfig, evalM, failWith, writeLog)
 import           Hedgehog.Golden.Sample (genSamples)
-import           Hedgehog.Golden.Types (GoldenTest(..), TestName(..))
-import           GHC.Stack (HasCallStack, callStack, withFrozenCallStack)
-import           System.Directory (doesFileExist)
+import           Hedgehog.Golden.Types (GoldenTest(..), ValueGenerator, ValueReader)
+import qualified Hedgehog.Golden.Internal.Source as Source
+import           System.Directory (createDirectoryIfMissing, doesFileExist)
+
+goldenProperty :: forall a
+   . HasCallStack
+  => Typeable a
+  => FromJSON a
+  => ToJSON a
+  => Gen a -> Property
+goldenProperty = withFrozenCallStack $ goldenProperty' "golden/"
+
+goldenProperty' :: forall a
+   . HasCallStack
+  => Typeable a
+  => FromJSON a
+  => ToJSON a
+  => FilePath -> Gen a -> Property
+goldenProperty' baseDir gen = withFrozenCallStack $
+  Property defaultConfig { propertyTestLimit = 1, propertyShrinkLimit = 0 } . evalM $
+    goldenTest baseDir gen >>= \case
+      NewFile fileName valGen -> do
+        newGoldenFile baseDir fileName valGen
+      ExistingFile fileName valGen readerM ->
+        existingGoldenFile baseDir fileName valGen readerM
+
+newGoldenFile :: HasCallStack => FilePath -> FilePath -> ValueGenerator -> PropertyT IO ()
+newGoldenFile basePath fileName gen = do
+  seed <- Seed.random
+  -- Create new file
+  liftIO $ do
+    createDirectoryIfMissing False basePath
+    Text.writeFile (fileName <> ".new") . Text.intercalate "\n" . gen $ seed
+
+  -- Annotate output
+  writeLog . Footnote $ "New golden file generated in: " <> fileName
+  failWith Nothing "No previous golden file exists"
+
+existingGoldenFile ::
+     HasCallStack
+  => FilePath -> FilePath -> ValueGenerator -> Maybe ValueReader -> PropertyT IO ()
+existingGoldenFile basePath fp gen reader = getSeedAndLines >>= \case
+  Right (seed, existingLines) ->
+    let
+      comparison =
+        getDiff existingLines $ gen seed
+
+      hasDifference = any $ \case
+        Both _ _ -> False
+        First _  -> True
+        Second _ -> True
+
+      runDecodeTest = forM_ reader $ \r ->
+        either
+          (failWith Nothing . (<>) "Failed to deserialize with error: " . Text.unpack)
+          (const success)
+          (r . Text.intercalate "\n" $ existingLines)
+    in
+      if hasDifference comparison then do
+        liftIO $ do
+          createDirectoryIfMissing False basePath
+          Text.writeFile (fp <> ".gen") . Text.intercalate "\n" . gen $ seed
+
+        writeLog . Footnote $
+          "Different file generated as: " <> fp <> ".gen"
+
+        failWith Nothing . Text.unpack . Text.intercalate "\n" $
+          [ "Failed in serialization comparison"
+          , ""
+          , Source.yellow "Difference when generating: " <> Text.pack fp
+          , printDifference comparison
+          ]
+      else
+        runDecodeTest
+  Left err ->
+    failWith Nothing $ "Couldn't read previous golden file (" <> fp <> ") because: " <> err
+  where
+    getSeedAndLines = liftIO $ do
+      fileContents <- Text.readFile fp
+      pure . fmap (, Text.lines fileContents) . decodeSeed $ fileContents
+
+printDifference :: [Diff Text] -> Text
+printDifference
+  = Text.intercalate "\n"
+  . Source.wrap Source.boxTop Source.boxBottom
+  . addLineNumbers 1
+  . renderDiff
+  where
+    renderDiff :: [Diff Text] -> [Diff Text]
+    renderDiff =
+      fmap $ \case
+        Both text _ -> Both (" " <> text) (" " <> text)
+        First text  -> First $ Source.red $ "-" <> text
+        Second text -> Second $ Source.green $ "+" <> text
+
+    addLineNumbers :: Int -> [Diff Text] -> [Text]
+    addLineNumbers _ [] = []
+    addLineNumbers i (d : ds) = case d of
+      Both text _ ->
+        Source.addLineNumber i text : addLineNumbers (i + 1) ds
+      First text ->
+        Source.addLineNumber i text : addLineNumbers i ds
+      Second text ->
+        Source.addLineNumber i text : addLineNumbers (i + 1) ds
+
+goldenTest :: forall a m
+   . Typeable a
+  => FromJSON a
+  => ToJSON a
+  => MonadIO m
+  => FilePath -> Gen a -> m GoldenTest
+goldenTest prefix gen =
+  let
+    typeName = show . typeRep $ Proxy @a
+    fileName = prefix <> typeName <> ".json"
+    aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
+    aesonValueReader t =
+      either (Left . Text.pack) (const $ Right ()) $
+        Aeson.eitherDecodeStrict (Text.encodeUtf8 t) >>= decodeGolden @a
+  in liftIO $ do
+    fileExists <- doesFileExist fileName
+    pure $ if fileExists then
+      ExistingFile fileName aesonValueGenerator (Just aesonValueReader)
+    else
+      NewFile fileName aesonValueGenerator
 
 encodeGolden :: ToJSON a => Seed -> Seq a -> Text
 encodeGolden seed samples =
@@ -58,19 +187,3 @@ decodeGolden = Aeson.parseEither $ \obj -> do
   samples <- obj .: "samples"
   pure (Seed value gamma, samples)
 
-goldenTest :: forall a. HasCallStack => Typeable a => FromJSON a => ToJSON a => Gen a -> IO GoldenTest
-goldenTest gen = withFrozenCallStack $
-  let
-    typeName = show . typeRep $ Proxy @a
-    testName = TestName $ Text.pack typeName
-    fileName = "golden/" <> typeName <> ".json"
-    aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
-    aesonValueReader t =
-      either (Left . Text.pack) (const $ Right ()) $
-        Aeson.eitherDecodeStrict (Text.encodeUtf8 t) >>= decodeGolden @a
-  in do
-    fileExists <- doesFileExist fileName
-    pure $ if fileExists then
-      ExistingFile testName callStack fileName aesonValueGenerator (Just aesonValueReader)
-    else
-      NewFile testName callStack fileName aesonValueGenerator
