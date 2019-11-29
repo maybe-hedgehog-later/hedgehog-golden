@@ -1,5 +1,23 @@
+-- | This module can be used in order to create golden tests for Aeson
+--   serializers and deserializers
+--
+--   @
+--   {-\# LANGUAGE TemplateHaskell \#-}
+--
+--   import           Hedeghog
+--   import qualified Hedeghog.Gen as Gen
+--   import qualified Hedeghog.Golden.Aeson as Aeson
+--
+--   -- | A golden test for characters in the hex range
+--   prop_char_golden :: Property
+--   prop_char_golden = Aeson.goldenProperty Gen.hexit
+--
+--   tests :: IO Bool
+--   tests = checkParallel $$discover
+--   @
 module Hedgehog.Golden.Aeson
-  ( goldenProperty
+  ( -- * Golden tests for generators
+    goldenProperty
   , goldenProperty'
   ) where
 
@@ -31,6 +49,11 @@ import           Hedgehog.Golden.Types (GoldenTest(..), ValueGenerator, ValueRea
 import qualified Hedgehog.Golden.Internal.Source as Source
 import           System.Directory (createDirectoryIfMissing, doesFileExist)
 
+-- | Run a golden test on the given generator
+--
+--   This will create a file in @golden/<TypeName>.json.new@ in case it does not
+--   exist. If it does exist - the golden tests will be run against it
+--
 goldenProperty :: forall a
    . HasCallStack
   => Typeable a
@@ -39,6 +62,8 @@ goldenProperty :: forall a
   => Gen a -> Property
 goldenProperty = withFrozenCallStack $ goldenProperty' "golden/"
 
+-- | Same as 'goldenProperty' but allows specifying the directory
+--
 goldenProperty' :: forall a
    . HasCallStack
   => Typeable a
