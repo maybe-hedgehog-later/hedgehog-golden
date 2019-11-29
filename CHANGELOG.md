@@ -1,5 +1,5 @@
 # Revision history for hedgehog-golden
 
-## 0.0.1 -- YYYY-mm-dd
+## 1.0.0 -- 2019-11-29
 
 * First version. Released on an unsuspecting world.
