@@ -3,7 +3,7 @@ module Main (main) where
 
 import           Prelude
 
-import           Control.Monad (when)
+import           Control.Monad (unless)
 import           Hedgehog (Property)
 import           Hedgehog (checkParallel, discover)
 import qualified Hedgehog.Golden.Aeson as Aeson
@@ -20,4 +20,4 @@ tests :: IO Bool
 tests = checkParallel $$discover
 
 main :: IO ()
-main = tests >>= flip when exitFailure
+main = tests >>= flip unless exitFailure
