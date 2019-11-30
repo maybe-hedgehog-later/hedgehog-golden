@@ -8,9 +8,9 @@ Example
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 
-import           Hedeghog
-import qualified Hedeghog.Gen as Gen
-import qualified Hedeghog.Golden.Aeson as Aeson
+import           Hedgehog
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Golden.Aeson as Aeson
 
 -- | A golden test for characters in the hex range
 prop_char_golden :: Property
