@@ -56,6 +56,7 @@ library
     src
   exposed-modules:
     Hedgehog.Golden.Aeson
+  other-modules:
     Hedgehog.Golden.Types
     Hedgehog.Golden.Sample
     Hedgehog.Golden.Internal.Source
