@@ -10,7 +10,7 @@ import qualified Hedgehog.Internal.Gen as Gen
 import qualified Hedgehog.Internal.Tree as Tree
 import qualified Hedgehog.Range as Range
 
--- | Generate a fixed Seq of @a@ from the given gnerator
+-- | Generate a fixed Seq of @a@ from the given generator
 genSamples :: Seed -> Gen a -> Seq a
 genSamples seed gen =
   let
