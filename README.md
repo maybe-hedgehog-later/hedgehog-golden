@@ -2,6 +2,18 @@ Hedgehog Golden
 ===============
 A golden file extension to hedgehog
 
+Hedgehog support
+----------------
+[Hedgehog](http://hackage.haskell.org/package/hedgehog-1.0) v1.x series is
+supported by
+[hedgehog-golden](https://hackage.haskell.org/package/hedgehog-golden-1.0.0)
+v1.x series
+
+[Hedgehog](http://hackage.haskell.org/package/hedgehog-0.6.1) v0.6.x series is
+supported by
+[hedgehog-golden](https://hackage.haskell.org/package/hedgehog-golden-0.6.0)
+v0.6.x series
+
 Example
 -------
 
@@ -14,8 +26,10 @@ import qualified Hedgehog.Golden.Aeson as Aeson
 
 -- | A golden test for characters in the hex range
 prop_char_golden :: Property
-prop_char_golden = Aeson.goldenProperty Gen.hexit
+prop_char_golden =
+  Aeson.goldenProperty Gen.hexit
 
 tests :: IO Bool
-tests = checkParallel $$discover
+tests =
+  checkParallel $$discover
 ```
