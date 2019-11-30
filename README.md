@@ -1,5 +1,8 @@
 Hedgehog Golden
 ===============
+![](https://github.com/felixmulder/hedgehog-golden/workflows/Haskell%20CI/badge.svg)
+![](https://img.shields.io/badge/Hackage-v1.0.0-blue.svg)
+
 A golden file extension to hedgehog
 
 Hedgehog support
