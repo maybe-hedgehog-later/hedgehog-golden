@@ -16,7 +16,6 @@ v0.6.x series
 
 Example
 -------
-
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 
