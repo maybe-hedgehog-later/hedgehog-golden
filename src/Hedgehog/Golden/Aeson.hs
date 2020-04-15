@@ -43,6 +43,7 @@ import           Hedgehog (success)
 import qualified Hedgehog.Internal.Seed as Seed
 import           Hedgehog.Internal.Source
 import           Hedgehog.Internal.Property (Log(..), Property(..), PropertyConfig(..))
+import           Hedgehog.Internal.Property (TerminationCriteria(..))
 import           Hedgehog.Internal.Property (defaultConfig, evalM, failWith, writeLog)
 import           Hedgehog.Golden.Sample (genSamples)
 import           Hedgehog.Golden.Types (GoldenTest(..), ValueGenerator, ValueReader)
@@ -71,12 +72,17 @@ goldenProperty' :: forall a
   => ToJSON a
   => FilePath -> Gen a -> Property
 goldenProperty' baseDir gen = withFrozenCallStack $
-  Property defaultConfig { propertyTestLimit = 1, propertyShrinkLimit = 0 } . evalM $
+  Property config . evalM $
     goldenTest baseDir gen >>= \case
       NewFile fileName valGen -> do
         newGoldenFile baseDir fileName valGen
       ExistingFile fileName valGen readerM ->
         existingGoldenFile baseDir fileName valGen readerM
+  where
+    config = defaultConfig
+      { propertyTerminationCriteria = NoConfidenceTermination 1
+      , propertyShrinkLimit         = 0
+      }
 
 newGoldenFile :: HasCallStack => FilePath -> FilePath -> ValueGenerator -> PropertyT IO ()
 newGoldenFile basePath fileName gen = do
