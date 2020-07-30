@@ -1,0 +1,38 @@
+{
+  "samples": [
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    },
+    {
+      "wrapped": 7
+    }
+  ],
+  "seed": {
+    "gamma": 1.0150594201154694031e19,
+    "value": 1.3128834870556762519e19
+  }
+}

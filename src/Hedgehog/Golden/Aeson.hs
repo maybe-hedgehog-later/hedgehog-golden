@@ -34,7 +34,7 @@ import qualified Data.ByteString.Lazy as ByteString (toStrict)
 import           Data.Proxy (Proxy(..))
 import           Data.Sequence (Seq)
 import           Data.Text (Text)
-import qualified Data.Text as Text (intercalate, lines, pack, unpack)
+import qualified Data.Text as Text (intercalate, lines, pack, replace, unpack)
 import qualified Data.Text.Encoding as Text (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text (readFile, writeFile)
 import           Data.Typeable (Typeable, typeRep)
@@ -171,8 +171,8 @@ goldenTest :: forall a m
   => FilePath -> Gen a -> m GoldenTest
 goldenTest prefix gen =
   let
-    typeName = show . typeRep $ Proxy @a
-    fileName = prefix <> typeName <> ".json"
+    typeName = Text.replace " " "." (Text.pack . show . typeRep $ Proxy @a)
+    fileName = prefix <> Text.unpack typeName <> ".json"
     aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
     aesonValueReader t =
       either (Left . Text.pack) (const $ Right ()) $
@@ -217,4 +217,3 @@ decodeGolden = Aeson.parseEither $ \obj -> do
   gamma <- obj .: "seed" >>= (.: "gamma")
   samples <- obj .: "samples"
   pure (Seed value gamma, samples)
-
