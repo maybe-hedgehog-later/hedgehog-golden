@@ -48,7 +48,7 @@ import           Hedgehog.Internal.Property (defaultConfig, evalM, failWith, wri
 import           Hedgehog.Golden.Sample (genSamples)
 import           Hedgehog.Golden.Types (GoldenTest(..), ValueGenerator, ValueReader)
 import qualified Hedgehog.Golden.Internal.Source as Source
-import           System.Directory (createDirectoryIfMissing, doesFileExist)
+import           System.Directory (createDirectoryIfMissing, doesFileExist, getCurrentDirectory)
 
 -- | Run a golden test on the given generator
 --
@@ -89,11 +89,12 @@ newGoldenFile basePath fileName gen = do
   seed <- Seed.random
   -- Create new file
   liftIO $ do
-    createDirectoryIfMissing False basePath
+    createDirectoryIfMissing True basePath
     Text.writeFile (fileName <> ".new") . Text.intercalate "\n" . gen $ seed
 
   -- Annotate output
-  writeLog . Footnote $ "New golden file generated in: " <> fileName
+  currentDir <- liftIO $ getCurrentDirectory
+  writeLog . Footnote $ "New golden file generated in: " <> currentDir <> "/" <> fileName <> ".new"
   failWith Nothing "No previous golden file exists"
 
 existingGoldenFile ::
@@ -169,20 +170,19 @@ goldenTest :: forall a m
   => ToJSON a
   => MonadIO m
   => FilePath -> Gen a -> m GoldenTest
-goldenTest prefix gen =
+goldenTest prefix gen = do
   let
-    typeName = Text.replace " " "." (Text.pack . show . typeRep $ Proxy @a)
+    typeName = Text.replace " " "_" (Text.pack . show . typeRep $ Proxy @a)
     fileName = prefix <> Text.unpack typeName <> ".json"
     aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
     aesonValueReader t =
       either (Left . Text.pack) (const $ Right ()) $
         Aeson.eitherDecodeStrict (Text.encodeUtf8 t) >>= decodeGolden @a
-  in liftIO $ do
-    fileExists <- doesFileExist fileName
-    pure $ if fileExists then
-      ExistingFile fileName aesonValueGenerator (Just aesonValueReader)
-    else
-      NewFile fileName aesonValueGenerator
+  fileExists <- liftIO $ doesFileExist fileName
+  pure $ if fileExists then
+    ExistingFile fileName aesonValueGenerator (Just aesonValueReader)
+  else
+    NewFile fileName aesonValueGenerator
 
 encodeGolden :: ToJSON a => Seed -> Seq a -> Text
 encodeGolden seed samples =
