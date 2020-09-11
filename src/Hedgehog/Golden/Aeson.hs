@@ -25,7 +25,7 @@ import           Prelude
 
 import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Algorithm.Diff (Diff(..), getDiff)
+import           Data.Algorithm.Diff (PolyDiff(..), Diff, getDiff)
 import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
 import qualified Data.Aeson as Aeson (eitherDecodeStrict)
 import qualified Data.Aeson.Types as Aeson
