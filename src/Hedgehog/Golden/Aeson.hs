@@ -25,7 +25,7 @@ import           Prelude
 
 import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Algorithm.Diff (Diff(..), getDiff)
+import           Data.Algorithm.Diff (PolyDiff(..), getDiff)
 import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
 import qualified Data.Aeson as Aeson (eitherDecodeStrict)
 import qualified Data.Aeson.Types as Aeson
@@ -140,21 +140,21 @@ existingGoldenFile basePath fp gen reader = getSeedAndLines >>= \case
       fileContents <- Text.readFile fp
       pure . fmap (, Text.lines fileContents) . decodeSeed $ fileContents
 
-printDifference :: [Diff Text] -> Text
+printDifference :: [PolyDiff Text Text] -> Text
 printDifference
   = Text.intercalate "\n"
   . Source.wrap Source.boxTop Source.boxBottom
   . addLineNumbers 1
   . renderDiff
   where
-    renderDiff :: [Diff Text] -> [Diff Text]
+    renderDiff :: [PolyDiff Text Text] -> [PolyDiff Text Text]
     renderDiff =
       fmap $ \case
         Both text _ -> Both (" " <> text) (" " <> text)
         First text  -> First $ Source.red $ "-" <> text
         Second text -> Second $ Source.green $ "+" <> text
 
-    addLineNumbers :: Int -> [Diff Text] -> [Text]
+    addLineNumbers :: Int -> [PolyDiff Text Text] -> [Text]
     addLineNumbers _ [] = []
     addLineNumbers i (d : ds) = case d of
       Both text _ ->
