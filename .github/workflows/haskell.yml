@@ -8,17 +8,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
-    - uses: actions/setup-haskell@v1
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v15
       with:
-        ghc-version: '8.10.1'
-        cabal-version: '3.0'
-    - name: Update dependencies
-      run: |
-        cabal update
-    - name: Build
-      run: |
-        cabal configure --enable-tests
-        cabal build
-    - name: Run tests
-      run: cabal test
+        nix_path: nixpkgs=channel:nixos-unstable
+    - run: nix flake check
