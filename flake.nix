@@ -8,7 +8,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, haskellNix }:
-    flake-utils.lib.eachSystem ["x86_64-linux" ] (system:
+    flake-utils.lib.eachDefaultSystem (system:
       let
         deferPluginErrors = true;
         overlays = [
@@ -36,5 +36,7 @@
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
         flake = pkgs.hedgehog-golden.flake { };
       in
-      flake);
+      flake // {
+        defaultPackage = flake.packages."hedgehog-golden:lib:hedgehog-golden";
+      });
 }
