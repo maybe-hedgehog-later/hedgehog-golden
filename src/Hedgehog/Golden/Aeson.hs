@@ -26,11 +26,12 @@ import           Prelude
 import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Algorithm.Diff (PolyDiff(..), getDiff)
-import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
+import           Data.Aeson (FromJSON, ToJSON, (.=), (.:), (.:?))
 import qualified Data.Aeson as Aeson (eitherDecodeStrict)
 import qualified Data.Aeson.Types as Aeson
 import           Data.Aeson.Encode.Pretty (Config(..), Indent(..), encodePretty', defConfig)
 import qualified Data.ByteString.Lazy as ByteString (toStrict)
+import           Data.Maybe (fromMaybe)
 import           Data.Proxy (Proxy(..))
 import           Data.Sequence (Seq)
 import           Data.Text (Text)
@@ -39,6 +40,8 @@ import qualified Data.Text.Encoding as Text (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text (readFile, writeFile)
 import           Data.Typeable (Typeable, typeRep)
 import           Hedgehog (Gen, Property, PropertyT, Size(..), Seed(..))
+import           Hedgehog.Gen (int, sample)
+import           Hedgehog.Range (linear)
 import           Hedgehog (success)
 import qualified Hedgehog.Internal.Seed as Seed
 import           Hedgehog.Internal.Source
@@ -87,7 +90,7 @@ goldenProperty' baseDir gen = withFrozenCallStack $
 newGoldenFile :: HasCallStack => FilePath -> FilePath -> ValueGenerator -> PropertyT IO ()
 newGoldenFile basePath fileName valueGen = do
   seed <- Seed.random
-  let size = 0 -- TODO something other than 0 <- Gen.int 0 10
+  size <- Size <$> sample (int (linear 1 10000))
   -- Create new file
   liftIO $ do
     createDirectoryIfMissing True basePath
@@ -214,8 +217,8 @@ decodeSizeAndSeed text =
       Aeson.parseEither $ \obj -> do
         value <- obj .: "seed" >>= (.: "value")
         gamma <- obj .: "seed" >>= (.: "gamma")
-        size <- obj .: "size"
-        pure $ (Size size, Seed value gamma)
+        maybeSize <- obj .:? "size"
+        pure $ (Size (fromMaybe 0 maybeSize), Seed value gamma)
   in
     Aeson.eitherDecodeStrict (Text.encodeUtf8 text) >>= getSeed
 
