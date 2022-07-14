@@ -3,9 +3,9 @@ module Hedgehog.Golden.Types where
 import           Prelude
 
 import           Data.Text (Text)
-import           Hedgehog (Seed)
+import           Hedgehog (Seed, Size)
 
-type ValueGenerator = Seed -> [Text]
+type ValueGenerator = Size -> Seed -> [Text]
 
 type ValueReader = Text -> Either Text ()
 

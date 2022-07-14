@@ -26,11 +26,12 @@ import           Prelude
 import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Algorithm.Diff (PolyDiff(..), getDiff)
-import           Data.Aeson (FromJSON, ToJSON, (.=), (.:))
+import           Data.Aeson (FromJSON, ToJSON, (.=), (.:), (.:?))
 import qualified Data.Aeson as Aeson (eitherDecodeStrict)
 import qualified Data.Aeson.Types as Aeson
 import           Data.Aeson.Encode.Pretty (Config(..), Indent(..), encodePretty', defConfig)
 import qualified Data.ByteString.Lazy as ByteString (toStrict)
+import           Data.Maybe (fromMaybe)
 import           Data.Proxy (Proxy(..))
 import           Data.Sequence (Seq)
 import           Data.Text (Text)
@@ -38,7 +39,9 @@ import qualified Data.Text as Text (intercalate, lines, pack, replace, unpack)
 import qualified Data.Text.Encoding as Text (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text (readFile, writeFile)
 import           Data.Typeable (Typeable, typeRep)
-import           Hedgehog (Gen, Property, PropertyT, Seed(..))
+import           Hedgehog (Gen, Property, PropertyT, Size(..), Seed(..))
+import           Hedgehog.Gen (int, sample)
+import           Hedgehog.Range (linear)
 import           Hedgehog (success)
 import qualified Hedgehog.Internal.Seed as Seed
 import           Hedgehog.Internal.Source
@@ -85,12 +88,13 @@ goldenProperty' baseDir gen = withFrozenCallStack $
       }
 
 newGoldenFile :: HasCallStack => FilePath -> FilePath -> ValueGenerator -> PropertyT IO ()
-newGoldenFile basePath fileName gen = do
+newGoldenFile basePath fileName valueGen = do
   seed <- Seed.random
+  size <- Size <$> sample (int (linear 1 10000))
   -- Create new file
   liftIO $ do
     createDirectoryIfMissing True basePath
-    Text.writeFile (fileName <> ".new") . Text.intercalate "\n" . gen $ seed
+    Text.writeFile (fileName <> ".new") . Text.intercalate "\n" . (valueGen size) $ seed
 
   -- Annotate output
   currentDir <- liftIO $ getCurrentDirectory
@@ -101,10 +105,10 @@ existingGoldenFile ::
      HasCallStack
   => FilePath -> FilePath -> ValueGenerator -> Maybe ValueReader -> PropertyT IO ()
 existingGoldenFile basePath fp gen reader = getSeedAndLines >>= \case
-  Right (seed, existingLines) ->
+  Right ((size, seed), existingLines) ->
     let
       comparison =
-        getDiff existingLines $ gen seed
+        getDiff existingLines $ gen size seed
 
       hasDifference = any $ \case
         Both _ _ -> False
@@ -120,7 +124,7 @@ existingGoldenFile basePath fp gen reader = getSeedAndLines >>= \case
       if hasDifference comparison then do
         liftIO $ do
           createDirectoryIfMissing False basePath
-          Text.writeFile (fp <> ".gen") . Text.intercalate "\n" . gen $ seed
+          Text.writeFile (fp <> ".gen") . Text.intercalate "\n" . (gen size) $ seed
 
         writeLog . Footnote $
           "Different file generated as: " <> fp <> ".gen"
@@ -138,7 +142,7 @@ existingGoldenFile basePath fp gen reader = getSeedAndLines >>= \case
   where
     getSeedAndLines = liftIO $ do
       fileContents <- Text.readFile fp
-      pure . fmap (, Text.lines fileContents) . decodeSeed $ fileContents
+      pure . fmap (, Text.lines fileContents) . decodeSizeAndSeed $ fileContents
 
 printDifference :: [PolyDiff Text Text] -> Text
 printDifference
@@ -174,7 +178,8 @@ goldenTest prefix gen = do
   let
     typeName = Text.replace " " "_" (Text.pack . show . typeRep $ Proxy @a)
     fileName = prefix <> Text.unpack typeName <> ".json"
-    aesonValueGenerator seed = Text.lines . encodeGolden seed $ genSamples seed gen
+    aesonValueGenerator size seed =
+      Text.lines . encodeGolden size seed $ genSamples size seed gen
     aesonValueReader t =
       either (Left . Text.pack) (const $ Right ()) $
         Aeson.eitherDecodeStrict (Text.encodeUtf8 t) >>= decodeGolden @a
@@ -184,11 +189,13 @@ goldenTest prefix gen = do
   else
     NewFile fileName aesonValueGenerator
 
-encodeGolden :: ToJSON a => Seed -> Seq a -> Text
-encodeGolden seed samples =
+encodeGolden :: ToJSON a => Size -> Seed -> Seq a -> Text
+encodeGolden size seed samples =
   let
     aesonSeed (Seed value gamma) =
       Aeson.object [ "value" .= value, "gamma" .= gamma ]
+
+    aesonSize (Size s) = Aeson.Number $ fromInteger $ toInteger s
 
     encodePretty =
       Text.decodeUtf8 . ByteString.toStrict . encodePretty' defConfig
@@ -197,23 +204,28 @@ encodeGolden seed samples =
         }
   in
     encodePretty $
-      Aeson.object [ "seed" .= aesonSeed seed, "samples" .= Aeson.toJSON samples ]
+      Aeson.object [ "seed" .= aesonSeed seed
+                   , "size" .= aesonSize size
+                   , "samples" .= Aeson.toJSON samples
+                   ]
 
-decodeSeed :: Text -> Either String Seed
-decodeSeed text =
+decodeSizeAndSeed :: Text -> Either String (Size, Seed)
+decodeSizeAndSeed text =
   let
-    getSeed :: Aeson.Object -> Either String Seed
+    getSeed :: Aeson.Object -> Either String (Size, Seed)
     getSeed =
       Aeson.parseEither $ \obj -> do
         value <- obj .: "seed" >>= (.: "value")
         gamma <- obj .: "seed" >>= (.: "gamma")
-        pure $ Seed value gamma
+        maybeSize <- obj .:? "size"
+        pure $ (Size (fromMaybe 0 maybeSize), Seed value gamma)
   in
     Aeson.eitherDecodeStrict (Text.encodeUtf8 text) >>= getSeed
 
-decodeGolden :: FromJSON a => Aeson.Object -> Either String (Seed, Seq a)
+decodeGolden :: FromJSON a => Aeson.Object -> Either String (Size, Seed, Seq a)
 decodeGolden = Aeson.parseEither $ \obj -> do
   value <- obj .: "seed" >>= (.: "value")
   gamma <- obj .: "seed" >>= (.: "gamma")
+  size <- obj .: "size"
   samples <- obj .: "samples"
-  pure (Seed value gamma, samples)
+  pure (Size size, Seed value gamma, samples)
