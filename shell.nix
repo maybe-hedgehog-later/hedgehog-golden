@@ -10,6 +10,7 @@ stdenv.mkDerivation {
   buildInputs = with haskell.packages.ghc8107; [
     cabal-install
     ghc
+    ghcid
     libiconv
   ];
 }
