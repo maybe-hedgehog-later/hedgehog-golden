@@ -8,7 +8,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, haskellNix }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
       let
         deferPluginErrors = true;
         overlays = [
