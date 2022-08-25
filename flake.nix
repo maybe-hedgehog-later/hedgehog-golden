@@ -18,7 +18,7 @@
             hedgehog-golden =
               final.haskell-nix.project' {
                 src = ./.;
-                compiler-nix-name = "ghc923";
+                compiler-nix-name = "ghc922";
                 projectFileName = "stack.yaml";
                 modules = [{
                   packages = { };
