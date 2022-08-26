@@ -14,6 +14,7 @@ import           Hedgehog.Main (defaultMain)
 import           Hedgehog.Range (linear)
 import qualified Hedgehog.Golden.Aeson as Aeson
 import qualified Hedgehog.Gen as Gen
+import           Main.Utf8 (withUtf8)
 
 data HigherKinded a = HigherKinded { wrapped :: a }
   deriving stock (Generic)
@@ -39,4 +40,4 @@ tests :: IO Bool
 tests = checkParallel $$discover
 
 main :: IO ()
-main = defaultMain [ tests ]
+main = withUtf8 $ defaultMain [ tests ]
